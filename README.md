@@ -44,6 +44,14 @@ FastAPI-Learning/
 │   ├── app.py
 │   └── README.md
 │
+├── response_models/        # 📤 Module 6 — Response Models & Data Filtering
+│   ├── app.py
+│   └── README.md
+│
+├── status_code_responses/  # 🚦 Module 7 — HTTP Status Codes & Error Handling
+│   ├── app.py
+│   └── README.md
+│
 ├── .agents/SKILLS.md       # 🗺️ Learning roadmap & resource links
 └── README.md               # ← You are here
 ```
@@ -155,12 +163,31 @@ DELETE  /todos/{todo_id} → Delete a todo
 
 ---
 
+### Module 6 → [`response_models/`](./response_models/)
+**What you'll learn:** Restricting/filtering outbound data, Request vs Response schemas, and hiding sensitive fields (e.g. passwords).
+
+```
+POST  /user   → Filter output to return only {"name", "age"}
+```
+
+---
+
+### Module 7 → [`status_code_responses/`](./status_code_responses/)
+**What you'll learn:** Standardizing response envelopes, setting HTTP success codes (e.g. `201 Created`), and raising `HTTPException` for client errors.
+
+```
+POST  /create_user → Custom 201 Created status code
+GET   /user/{id}   → 200 OK or 404 Not Found error handling
+```
+
+---
+
 ## 🧠 FastAPI Cheat Sheet (Interview Quick-Revision)
 
 ### Core Concepts at a Glance
 
 ```python
-from fastapi import FastAPI
+from fastapi import FastAPI, status, HTTPException
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -175,14 +202,21 @@ def read_item(item_id: int):
 def search(q: str = None, limit: int = 10):
     return {"query": q, "limit": limit}
 
-# ── POST with request body ──
+# ── POST with request body & response model & custom status ──
 class Item(BaseModel):
     name: str
     price: float
+    secret_key: str
 
-@app.post("/items")
+class ItemResponse(BaseModel):
+    name: str
+    price: float
+
+@app.post("/items", response_model=ItemResponse, status_code=status.HTTP_201_CREATED)
 def create_item(item: Item):
-    return {"data": item}
+    if item.price <= 0:
+        raise HTTPException(status_code=400, detail="Price must be positive")
+    return item
 ```
 
 ### How FastAPI Decides Parameter Type
@@ -193,14 +227,14 @@ def create_item(item: Item):
 | A **Pydantic model** in function args | **Request Body** |
 | Everything else | **Query Parameter** |
 
-### HTTP Methods Recap
+### HTTP Status Code Ranges
 
-| Method | Purpose | Example |
+| Status Code Range | Category | Purpose / Common Example |
 |---|---|---|
-| `GET` | **Read** data | Fetch all users |
-| `POST` | **Create** new data | Add a new user |
-| `PUT` | **Update** existing data | Edit a user's info |
-| `DELETE` | **Remove** data | Delete a user |
+| **`2xx`** | **Success** | `200 OK` (Standard success), `201 Created` (Resource created) |
+| **`3xx`** | **Redirection** | `301 Moved Permanently` |
+| **`4xx`** | **Client Error** | `400 Bad Request`, `401 Unauthorized`, `404 Not Found` |
+| **`5xx`** | **Server Error** | `500 Internal Server Error` (Bug on server-side) |
 
 ### Dict vs Pydantic — Why Pydantic Wins
 
@@ -208,8 +242,9 @@ def create_item(item: Item):
 |---|---|---|
 | Validation | ❌ Manual | ✅ Automatic |
 | Type Safety | ❌ None | ✅ Enforced |
-| Error Messages | ❌ You write them | ✅ Auto-generated |
+| Error Messages | ❌ You write them | ✅ Auto-generated (422) |
 | Structure | Flexible (risky) | Strict (reliable) |
+| Docs Generation | ❌ Does not show up | ✅ Interactive docs (Swagger) |
 
 ---
 
