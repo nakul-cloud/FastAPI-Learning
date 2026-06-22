@@ -31,3 +31,27 @@ def get_todo(todo_id:int):
         if todo.id==todo_id:
             return todo
     return{"error":"Todo not found"}
+
+# Update 
+
+@app.put("/todos/{todo_id}")
+def update_todo(todo_id:int,updated_todos:Todo):
+    for index,todo in enumerate(todos):
+        if todo.id==todo_id:
+            todos[index]=updated_todos
+            return{
+                "message":"Todo updated",
+                "data":updated_todos
+            } 
+    return {"error":"Todo not found"}
+
+
+# Delete
+
+@app.delete("/todos/{todo_id}")
+def delete_todo(todo_id:int):
+    for index,todo in enumerate(todos):
+        if todo.id==todo_id:
+            todos.pop(index)
+            return {"message":"Todo deleted"}
+    return {"error":"Todo not found"}  
