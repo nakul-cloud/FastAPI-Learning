@@ -1,7 +1,7 @@
 
 ---
 
-👉 This file acts like a **learning roadmap + practice tracker**. You can paste it into VS Code as `fastapi_skill.md` and tick off items as you go.  
+👉 This file acts like a **learning roadmap + practice tracker**.
 
 QUICK LINKS: 
 
