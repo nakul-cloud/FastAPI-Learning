@@ -4,7 +4,7 @@ from fastapi import FastAPI
 app = FastAPI()
 
 
-# Multiple Routesgit remote add origin https://github.com/nakul-cloud/FastAPI-Learning.git
+# Multiple Routes
 
 @app.get("/")
 def home():
