@@ -64,7 +64,16 @@ FastAPI-Learning/
 │   ├── app.py
 │   └── README.md
 │
+├── auth/                   # 🔐 Module 11 — JWT Authentication (Token Generation)
+│   ├── app.py
+│   └── README.md
+│
+├── async/                  # ⏳ Module 12 — Async / Await & Concurrency
+│   ├── app.py
+│   └── README.md
+│
 ├── .agents/SKILLS.md       # 🗺️ Learning roadmap & resource links
+├── project_setup_prompt.md  # 🚀 E-Commerce API prompt for final learning project
 └── README.md               # ← You are here
 ```
 
@@ -94,7 +103,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
-pip install fastapi uvicorn pydantic
+pip install fastapi uvicorn pydantic python-jose cryptography passlib bcrypt==4.0.1 python-multipart
 ```
 
 ### 3. Run Any Module
@@ -114,59 +123,67 @@ Then open your browser:
 | `http://127.0.0.1:8000/docs` | 📄 Swagger UI (interactive docs) |
 | `http://127.0.0.1:8000/redoc` | 📘 ReDoc (alternative docs) |
 
-> 💡 **Tip:** The `--reload` flag auto-restarts the server when you save changes. Perfect for learning!
-
 ---
 
 ## 📖 Module-by-Module Learning Path
 
 ### Module 1 → [`routes/`](./routes/)
-**What you'll learn:** Creating your first API, defining multiple endpoints, and dynamic path parameters.
+**What you'll learn:** Creating endpoints, handling dynamic path routes, and parameter auto-conversion.
 
 ---
 
 ### Module 2 → [`query_parameter/`](./query_parameter/)
-**What you'll learn:** Optional parameters, default values, and combining multiple query params.
+**What you'll learn:** Optional parameters, setting defaults, and combining multiple filters in search queries.
 
 ---
 
 ### Module 3 → [`request_body/`](./request_body/)
-**What you'll learn:** Sending JSON data via POST requests, Pydantic validation, and Dict vs Pydantic.
+**What you'll learn:** POST requests receiving JSON bodies, Pydantic validation, and Dict vs Pydantic tradeoffs.
 
 ---
 
 ### Module 4 → [`pydantic_models/`](./pydantic_models/)
-**What you'll learn:** Pydantic BaseModel, field types, and nested models for complex data.
+**What you'll learn:** Schema declarations using BaseModel, nested schemas for hierarchical payloads.
 
 ---
 
 ### Module 5 → [`CRUD/`](./CRUD/)
-**What you'll learn:** Full Create-Read-Update-Delete operations on an in-memory Todo list.
+**What you'll learn:** Completing full HTTP routes (POST, GET, PUT, DELETE) on an in-memory list.
 
 ---
 
 ### Module 6 → [`response_models/`](./response_models/)
-**What you'll learn:** Restricting/filtering outbound data, Request vs Response schemas, and hiding sensitive fields (e.g. passwords).
+**What you'll learn:** Outbound data filtering, Request vs Response schemas, and hiding properties like passwords.
 
 ---
 
 ### Module 7 → [`status_code_responses/`](./status_code_responses/)
-**What you'll learn:** Standardizing response envelopes, setting HTTP success codes (e.g. `201 Created`), raising standard `HTTPException` for client errors, and registering Global Custom Exception Handlers (`@app.exception_handler`).
+**What you'll learn:** Custom HTTP success codes, default error exceptions, and custom global error handling with `@app.exception_handler`.
 
 ---
 
 ### Module 8 → [`dependency_injection/`](./dependency_injection/)
-**What you'll learn:** Reusable operations using `Depends`, auth checks, fetching headers, and DI vs Middleware.
+**What you'll learn:** Modular logic reuse using `Depends()`, auth header token validations, and DI vs Middleware.
 
 ---
 
 ### Module 9 → [`middleware/`](./middleware/)
-**What you'll learn:** Custom request-response interception logic, accessing headers globally, calculating process time, and CORS concepts.
+**What you'll learn:** Global interceptors, reading/injecting headers, and capturing request execution times.
 
 ---
 
 ### Module 10 → [`database/`](./database/)
-**What you'll learn:** SQLite connection setup, thread safety using `check_same_thread=False`, executing query executions, and schema initialization.
+**What you'll learn:** SQLite setup, database schema creation on startup, and solving thread concurrency bugs.
+
+---
+
+### Module 11 → [`auth/`](./auth/)
+**What you'll learn:** Securing APIs using OAuth2 Password Flow, hashing passwords securely using passlib (bcrypt), generating stateless JWT tokens, and verifying headers to secure routes.
+
+---
+
+### Module 12 → [`async/`](./async/)
+**What you'll learn:** Non-blocking async endpoints (`async def`), the Event Loop architecture, and avoiding blocking operations.
 
 ---
 
@@ -177,23 +194,29 @@ Then open your browser:
 ```python
 from fastapi import FastAPI, status, HTTPException, Depends, Header
 from pydantic import BaseModel
+from datetime import datetime, timezone, timedelta
+from jose import jwt
 
 app = FastAPI()
 
+SECRET_KEY = "mysecretkey"
+ALGORITHM = "HS256"
+
+# ── JWT token generation helper ──
+def create_token(data: dict):
+    to_encode = data.copy()
+    expiry = datetime.now(timezone.utc) + timedelta(minutes=30)
+    to_encode.update({"exp": expiry})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 # ── Dependency injection function ──
 def get_db_session():
-    # Setup connection
     return "session"
 
-# ── GET with path parameter & Dependency Injection ──
+# ── Async GET with path parameter & Dependency Injection ──
 @app.get("/items/{item_id}")
-def read_item(item_id: int, session=Depends(get_db_session)):
+async def read_item(item_id: int, session=Depends(get_db_session)):
     return {"item_id": item_id, "session": session}
-
-# ── GET with query parameter ──
-@app.get("/search")
-def search(q: str = None, limit: int = 10):
-    return {"query": q, "limit": limit}
 
 # ── POST with request body, response model & custom status ──
 class Item(BaseModel):
@@ -212,31 +235,21 @@ def create_item(item: Item):
     return item
 ```
 
-### How FastAPI Decides Parameter Type
+### Parameter Decision Table
 
-| Where is it? | FastAPI treats it as |
+| Parameter Signature | FastAPI Inference |
 |---|---|
-| In the **path** → `"/users/{id}"` | **Path Parameter** |
+| Declared in URL Path → `"/users/{id}"` | **Path Parameter** |
 | Declared with `Depends(...)` | **Injected Dependency** |
-| A **Pydantic model** in function args | **Request Body** |
-| Everything else | **Query Parameter** |
+| Declared with a Pydantic `BaseModel` | **Request Body** |
+| Anything else (e.g. `limit: int = 10`) | **Query Parameter** |
 
-### HTTP Status Code Ranges
+### Async def vs Sync def Decision Table
 
-| Status Code Range | Category | Purpose / Common Example |
+| Endpoint Implementation | FastAPI Execution Context | Best Used For |
 |---|---|---|
-| **`2xx`** | **Success** | `200 OK` (Standard success), `201 Created` (Resource created) |
-| **`3xx`** | **Redirection** | `301 Moved Permanently` |
-| **`4xx`** | **Client Error** | `400 Bad Request`, `401 Unauthorized`, `404 Not Found` |
-| **`5xx`** | **Server Error** | `500 Internal Server Error` (Bug on server-side) |
-
-### DI vs Middleware Comparison
-
-| Aspect | Dependency Injection (`Depends`) | Middleware |
-|---|---|---|
-| **Scope** | Route / Router specific | Global (every request) |
-| **Granularity** | Highly detailed (parsed types, context) | Low detailed (raw request/response objects) |
-| **Use cases** | DB connections, Authenticated user object | Logging, CORS, Gzip compression, timers |
+| `async def handler()` | Executes directly on the Event Loop | Non-blocking I/O (Async DB drivers, HTTP client calls) |
+| `def handler()` | Executes on an external Threadpool | Blocking operations (Standard sync SQL, heavy CPU calculations) |
 
 ---
 
