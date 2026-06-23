@@ -151,7 +151,7 @@ Then open your browser:
 ---
 
 ### Module 7 → [`status_code_responses/`](./status_code_responses/)
-**What you'll learn:** Standardizing response envelopes, setting HTTP success codes (e.g. `201 Created`), and raising `HTTPException` for client errors.
+**What you'll learn:** Standardizing response envelopes, setting HTTP success codes (e.g. `201 Created`), raising standard `HTTPException` for client errors, and registering Global Custom Exception Handlers (`@app.exception_handler`).
 
 ---
 
