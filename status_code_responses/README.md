@@ -1,29 +1,27 @@
 # 🚦 Module 7 — HTTP Status Codes & Error Handling
 
-> **Goal:** Learn how to return standard HTTP status codes for successful operations and raise clean HTTP exceptions when things go wrong.
+> **Goal:** Learn how to use standard HTTP status codes, raise default HTTP Exceptions, and build Global Custom Exception Handlers to return clean, consistent error responses.
 
 ---
 
 ## 🧠 Concepts Covered
 
-### 1. What are HTTP Status Codes?
+### 1. HTTP Status Codes Overview
 
-HTTP status codes are standard 3-digit numbers returned by servers to inform clients about the result of their request.
+HTTP status codes inform clients about the result of their API requests.
 
 | Range | Type | Meaning | Examples |
 |---|---|---|---|
-| **`2xx`** | **Success** | Request was completed successfully | `200 OK`, `201 Created` |
-| **`3xx`** | **Redirection** | Further action needs to be taken | `301 Moved Permanently` |
-| **`4xx`** | **Client Error** | The client made a mistake | `400 Bad Request`, `401 Unauthorized`, `404 Not Found` |
-| **`5xx`** | **Server Error** | The server failed to fulfill request | `500 Internal Server Error` |
+| **`2xx`** | **Success** | The request was completed successfully | `200 OK`, `201 Created` |
+| **`3xx`** | **Redirection** | Further action is needed | `301 Moved Permanently` |
+| **`4xx`** | **Client Error** | The client made a mistake in their request | `400 Bad Request`, `404 Not Found` |
+| **`5xx`** | **Server Error** | The server encountered a bug | `500 Internal Server Error` |
 
 ---
 
-### 2. Setting Custom Success Status Codes
+### 2. Custom Success Status Codes
 
-By default, FastAPI returns a `200 OK` for successful requests. However, for creation requests, it is a best practice to return a `201 Created` status code.
-
-We can define this in the path decorator using the `status_code` parameter:
+FastAPI defaults to returning `200 OK` for successful requests. For actions that create data (like registration or uploads), you should explicitly set the status code to `201 Created`:
 
 ```python
 from fastapi import status
@@ -36,54 +34,72 @@ def create_user():
     }
 ```
 
-> 💡 **Tip:** Always use FastAPI's built-in `status` module (e.g. `status.HTTP_201_CREATED`) instead of the raw number `201`. This prevents typos and makes code self-documenting!
-
 ---
 
-### 3. Custom Response Structures
+### 3. Built-in Error Handling (`HTTPException`)
 
-Instead of raw entities, APIs often wrap their outputs in a unified envelope structure for consistency across the frontend app:
-
-```python
-@app.get("/user")
-def get_user():
-    return {
-        "status": "Success",
-        "message": "User Found",
-        "data": {
-            "name": "Mohit",
-            "age": 22,
-            "email": "mohit@example.com"
-        }
-    }
-```
-
----
-
-### 4. Error Handling & Raising `HTTPException`
-
-When something goes wrong (e.g., resource not found, invalid credentials, data conflict), you should stop execution and return a specific HTTP error. In FastAPI, we do this by **raising** `HTTPException`:
+For standard error scenarios (like missing records), you can raise FastAPI's built-in `HTTPException`. This immediately interrupts the execution of the request and sends the specified status code and error details back to the client:
 
 ```python
 from fastapi import HTTPException
 
 @app.get("/user/{id}")
 def get_user(id: int):
-    if id == 5:
-        return {"message": "User Found"}
-    else:
-        # Raising HTTPException stops execution and returns immediately
+    if id != 1:
         raise HTTPException(status_code=404, detail="User Not Found")
+    return {
+        "id": 1,
+        "name": "Mohit",
+        "age": 22,
+        "email": "mohit@example.com"
+    }
 ```
 
-When `id` is not `5`, the response will be:
-*   **Status Code:** `404 Not Found`
-*   **Response Body:**
-    ```json
-    {
-      "detail": "User Not Found"
-    }
-    ```
+---
+
+### 4. Global Custom Exception Handlers (Advanced)
+
+If you have specific business logic rules (e.g., *UserNotFound*, *PaymentRequired*, *ItemOutOfStock*), throwing raw `HTTPExceptions` everywhere can make your path code messy. 
+
+Instead, you can define **Custom exceptions** and register a **Global Exception Handler** to catch them:
+
+```python
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+# 1. Define a custom Python exception class
+class UserNotFoundException(Exception):
+    def __init__(self, name: str):
+        self.name = name
+
+# 2. Register the global exception handler
+@app.exception_handler(UserNotFoundException)
+def user_not_found_exception_handler(request: Request, exc: UserNotFoundException):
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={
+            "status": "error",
+            "message": f"User {exc.name} Not Found"
+        }
+    )
+
+# 3. Raise your custom exception inside path functions
+@app.get("/user/{name}")
+def get_user(name: str):
+    if name != "Mohit":
+        raise UserNotFoundException(name)
+    return {"name": name}
+```
+
+---
+
+### 🌟 Benefits of Global Exception Handlers
+
+1.  **DRY (Don't Repeat Yourself):** You don't have to write HTTP response formatting logic multiple times.
+2.  **Consistent Error Format:** Ensures every error returned by your API shares the exact same JSON structure (e.g., `{"status": "error", "message": "..."}`).
+3.  **Centralized Management:** Easy to update the error formats or add logging in one place.
+4.  **Better User Experience:** Provides clear, descriptive messages to the frontend.
+5.  **Scalable API Design:** Keep route handlers focused solely on business logic.
 
 ---
 
@@ -94,36 +110,41 @@ cd status_code_responses
 uvicorn app:app --reload
 ```
 
-Test at `http://127.0.0.1:8000/docs`:
-1.  **POST `/create_user`**: Check the response headers to see the `201 Created` status.
-2.  **GET `/user`**: View the standardized success response envelope.
-3.  **GET `/user/{id}`**: 
-    *   Enter `5` → Returns `{"message": "User Found"}` with `200 OK`.
-    *   Enter `10` → Returns `{"detail": "User Not Found"}` with `404 Not Found`.
+### Test Scenarios:
+
+1.  **POST `/create_user`**: Check the response headers. The HTTP Status Code is **`201 Created`**.
+2.  **GET `/user`**: Returns a custom success envelope structure.
+3.  **GET `/user/{id}` (Standard HTTPException)**:
+    *   `GET /user/1` → Returns user data (`200 OK`).
+    *   `GET /user/99` → Returns `{"detail": "User Not Found"}` (`404 Not Found`).
+4.  **GET `/user/{name}` (Global Exception Handler)**:
+    *   `GET /user/Mohit` → Returns `{"name": "Mohit"}` (`200 OK`).
+    *   `GET /user/Rohan` → Returns `{"status": "error", "message": "User Rohan Not Found"}` (`404 Not Found`). Notice how this structure matches our custom JSONResponse!
 
 ---
 
 ## 🔑 Key Takeaways
 
-| Concept | Syntax / Usage | Why Use It |
+| Code Element | Type | Purpose |
 |---|---|---|
-| Success Status Code | `@app.post(..., status_code=status.HTTP_201_CREATED)` | Communicates exactly what happened (e.g., resource created). |
-| `status` module | `from fastapi import status` | Avoids magic numbers in code. |
-| `HTTPException` | `raise HTTPException(status_code=..., detail=...)` | Standardizes error responses with accurate HTTP codes. |
+| `status.HTTP_...` | Named Constant | Clean HTTP code names (e.g. `status.HTTP_201_CREATED`). |
+| `HTTPException` | Built-in Class | Standard way to exit route functions with error responses. |
+| `@app.exception_handler()` | Decorator | Ties a custom Python exception to a specific JSON response. |
+| `JSONResponse` | Class | Returns raw JSON content and status codes directly from handlers. |
 
 ---
 
 ## 🎯 Interview Quick-Fire
 
-**Q: Which HTTP status code should be returned when creating a new resource?**
-> A: `201 Created`.
+**Q: What is the benefit of a Global Exception Handler in FastAPI?**
+> A: It allows you to write custom Python exceptions inside your business logic and define a single handler that maps them to standardized, clean JSON responses globally. This separates error formatting from your core API logic.
 
-**Q: How do you trigger an error response early in a FastAPI path function?**
-> A: By using the `raise` keyword with `HTTPException`, specifying the status code and a descriptive detail message.
+**Q: What is the difference between `HTTPException` and a Custom Exception Handler?**
+> A: `HTTPException` is a built-in utility class to throw basic errors with a `detail` string. Custom Exception Handlers let you catch custom exceptions and structure the response envelope exactly as you want (e.g. including error codes, debug information, or tracking IDs).
 
-**Q: What is the benefit of `from fastapi import status`?**
-> A: It provides clean, readable aliases for all standard HTTP status codes (e.g., `status.HTTP_404_NOT_FOUND` instead of `404`), reducing magic numbers.
+**Q: How do you return a specific HTTP status code for a successful request?**
+> A: Set the `status_code` parameter in the path decorator: `@app.get("/items", status_code=status.HTTP_201_CREATED)`.
 
 ---
 
-[← Previous: Response Models](../response_models/README.md) | [Back to Main README](../README.md)
+[← Previous: Response Models](../response_models/README.md) | [Back to Main README](../README.md) | [Next: Dependency Injection →](../dependency_injection/README.md)
