@@ -52,6 +52,18 @@ FastAPI-Learning/
 │   ├── app.py
 │   └── README.md
 │
+├── dependency_injection/   # 💉 Module 8 — Dependency Injection (Depends)
+│   ├── app.py
+│   └── README.md
+│
+├── middleware/             # 🔌 Module 9 — HTTP Middleware
+│   ├── app.py
+│   └── README.md
+│
+├── database/               # 🗄️ Module 10 — Database Integration (SQLite)
+│   ├── app.py
+│   └── README.md
+│
 ├── .agents/SKILLS.md       # 🗺️ Learning roadmap & resource links
 └── README.md               # ← You are here
 ```
@@ -111,74 +123,50 @@ Then open your browser:
 ### Module 1 → [`routes/`](./routes/)
 **What you'll learn:** Creating your first API, defining multiple endpoints, and dynamic path parameters.
 
-```
-GET  /           → Hello World
-GET  /about      → About Page
-GET  /users      → List of users
-GET  /users/{id} → Single user by ID (dynamic route)
-```
-
 ---
 
 ### Module 2 → [`query_parameter/`](./query_parameter/)
 **What you'll learn:** Optional parameters, default values, and combining multiple query params.
-
-```
-GET  /users?name=Nakul         → Single optional query param
-GET  /product?limit=5          → Default value (10 if not provided)
-GET  /items?name=Pen&price=20  → Multiple query params
-```
 
 ---
 
 ### Module 3 → [`request_body/`](./request_body/)
 **What you'll learn:** Sending JSON data via POST requests, Pydantic validation, and Dict vs Pydantic.
 
-```
-POST  /user   → Send { "name": "Nakul", "age": 22 }
-```
-
 ---
 
 ### Module 4 → [`pydantic_models/`](./pydantic_models/)
 **What you'll learn:** Pydantic BaseModel, field types, and nested models for complex data.
-
-```
-POST  /create_user    → Simple model (name, age, email)
-POST  /create_person  → Nested model (person → address)
-```
 
 ---
 
 ### Module 5 → [`CRUD/`](./CRUD/)
 **What you'll learn:** Full Create-Read-Update-Delete operations on an in-memory Todo list.
 
-```
-POST    /todos           → Create a todo
-GET     /todos           → Read all todos
-GET     /todos/{todo_id} → Read single todo
-PUT     /todos/{todo_id} → Update a todo
-DELETE  /todos/{todo_id} → Delete a todo
-```
-
 ---
 
 ### Module 6 → [`response_models/`](./response_models/)
 **What you'll learn:** Restricting/filtering outbound data, Request vs Response schemas, and hiding sensitive fields (e.g. passwords).
-
-```
-POST  /user   → Filter output to return only {"name", "age"}
-```
 
 ---
 
 ### Module 7 → [`status_code_responses/`](./status_code_responses/)
 **What you'll learn:** Standardizing response envelopes, setting HTTP success codes (e.g. `201 Created`), and raising `HTTPException` for client errors.
 
-```
-POST  /create_user → Custom 201 Created status code
-GET   /user/{id}   → 200 OK or 404 Not Found error handling
-```
+---
+
+### Module 8 → [`dependency_injection/`](./dependency_injection/)
+**What you'll learn:** Reusable operations using `Depends`, auth checks, fetching headers, and DI vs Middleware.
+
+---
+
+### Module 9 → [`middleware/`](./middleware/)
+**What you'll learn:** Custom request-response interception logic, accessing headers globally, calculating process time, and CORS concepts.
+
+---
+
+### Module 10 → [`database/`](./database/)
+**What you'll learn:** SQLite connection setup, thread safety using `check_same_thread=False`, executing query executions, and schema initialization.
 
 ---
 
@@ -187,22 +175,27 @@ GET   /user/{id}   → 200 OK or 404 Not Found error handling
 ### Core Concepts at a Glance
 
 ```python
-from fastapi import FastAPI, status, HTTPException
+from fastapi import FastAPI, status, HTTPException, Depends, Header
 from pydantic import BaseModel
 
 app = FastAPI()
 
-# ── GET with path parameter ──
+# ── Dependency injection function ──
+def get_db_session():
+    # Setup connection
+    return "session"
+
+# ── GET with path parameter & Dependency Injection ──
 @app.get("/items/{item_id}")
-def read_item(item_id: int):
-    return {"item_id": item_id}
+def read_item(item_id: int, session=Depends(get_db_session)):
+    return {"item_id": item_id, "session": session}
 
 # ── GET with query parameter ──
 @app.get("/search")
 def search(q: str = None, limit: int = 10):
     return {"query": q, "limit": limit}
 
-# ── POST with request body & response model & custom status ──
+# ── POST with request body, response model & custom status ──
 class Item(BaseModel):
     name: str
     price: float
@@ -224,6 +217,7 @@ def create_item(item: Item):
 | Where is it? | FastAPI treats it as |
 |---|---|
 | In the **path** → `"/users/{id}"` | **Path Parameter** |
+| Declared with `Depends(...)` | **Injected Dependency** |
 | A **Pydantic model** in function args | **Request Body** |
 | Everything else | **Query Parameter** |
 
@@ -236,15 +230,13 @@ def create_item(item: Item):
 | **`4xx`** | **Client Error** | `400 Bad Request`, `401 Unauthorized`, `404 Not Found` |
 | **`5xx`** | **Server Error** | `500 Internal Server Error` (Bug on server-side) |
 
-### Dict vs Pydantic — Why Pydantic Wins
+### DI vs Middleware Comparison
 
-| Feature | `dict` | Pydantic `BaseModel` |
+| Aspect | Dependency Injection (`Depends`) | Middleware |
 |---|---|---|
-| Validation | ❌ Manual | ✅ Automatic |
-| Type Safety | ❌ None | ✅ Enforced |
-| Error Messages | ❌ You write them | ✅ Auto-generated (422) |
-| Structure | Flexible (risky) | Strict (reliable) |
-| Docs Generation | ❌ Does not show up | ✅ Interactive docs (Swagger) |
+| **Scope** | Route / Router specific | Global (every request) |
+| **Granularity** | Highly detailed (parsed types, context) | Low detailed (raw request/response objects) |
+| **Use cases** | DB connections, Authenticated user object | Logging, CORS, Gzip compression, timers |
 
 ---
 
@@ -271,10 +263,10 @@ def create_item(item: Item):
 
 ## 📝 How to Use This Repo for Revision
 
-1. **Before an interview** — Read each folder's `README.md` for concept summaries
-2. **Quick code reference** — Check the cheat sheet above
-3. **Hands-on practice** — Run each module, hit the `/docs` endpoint, and test APIs live
-4. **Extend it** — Add your own modules as you learn (middleware, auth, database, etc.)
+1. **Before an interview** — Read each folder's `README.md` for concept summaries.
+2. **Quick code reference** — Check the cheat sheet above.
+3. **Hands-on practice** — Run each module, hit the `/docs` endpoint, and test APIs live.
+4. **Extend it** — Add your own modules as you learn (middleware, auth, database, etc.).
 
 ---
 
